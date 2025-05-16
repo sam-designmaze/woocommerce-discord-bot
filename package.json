@@ -1,0 +1,26 @@
+{
+  "name": "woocommerce-discord-bot",
+  "version": "1.0.0",
+  "description": "A Discord bot that validates WooCommerce invoices and assigns roles",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "axios": "^1.9.0",
+    "discord.js": "^14.19.3",
+    "dotenv": "^16.5.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sam-designmaze/woocommerce-discord-bot.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/sam-designmaze/woocommerce-discord-bot/issues"
+  },
+  "homepage": "https://github.com/sam-designmaze/woocommerce-discord-bot#readme"
+}
