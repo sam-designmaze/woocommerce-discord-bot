@@ -2,37 +2,47 @@ const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require
 const axios = require('axios');
 require('dotenv').config();
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+  ]
+});
 
+// Define slash command
 const commands = [
   new SlashCommandBuilder()
     .setName('redeem')
-    .setDescription('Redeem your WooCommerce invoice to get a Discord role')
+    .setDescription('Redeem your WooCommerce invoice ID')
     .addStringOption(option =>
       option.setName('invoiceid')
-        .setDescription('Your WooCommerce order ID')
+        .setDescription('Enter your WooCommerce order ID')
         .setRequired(true)
     )
 ].map(command => command.toJSON());
 
+// Register slash command on bot startup
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
 (async () => {
   try {
+    console.log('🔁 Registering slash commands...');
     await rest.put(
-      Routes.applicationGuildCommands('your_bot_client_id', process.env.GUILD_ID),
-      { body: commands },
+      Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
+      { body: commands }
     );
-    console.log('Slash command registered.');
-  } catch (error) {
-    console.error(error);
+    console.log('✅ Slash commands registered.');
+  } catch (err) {
+    console.error('❌ Error registering commands:', err);
   }
 })();
 
-client.on('ready', () => {
-  console.log(`Bot is logged in as ${client.user.tag}`);
+// Handle bot ready
+client.once('ready', () => {
+  console.log(`🤖 Bot logged in as ${client.user.tag}`);
 });
 
+// Handle slash command interaction
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
@@ -40,36 +50,39 @@ client.on('interactionCreate', async interaction => {
     const invoiceId = interaction.options.getString('invoiceid');
 
     try {
-      const response = await axios.get(`${process.env.WC_SITE}/wp-json/wc/v3/orders/${invoiceId}`, {
+      // Call WooCommerce API
+      const orderRes = await axios.get(`${process.env.WC_SITE}/wp-json/wc/v3/orders/${invoiceId}`, {
         auth: {
           username: process.env.WC_KEY,
-          password: process.env.WC_SECRET
+          password: process.env.WC_SECRET,
         }
       });
 
-      const order = response.data;
+      const order = orderRes.data;
+
       if (order.status !== 'completed') {
-        return interaction.reply({ content: '❌ Order not completed or does not exist.', ephemeral: true });
+        return interaction.reply({ content: `❌ Order ${invoiceId} is not completed.`, ephemeral: true });
       }
 
-      // Save to webhook on WordPress site
+      // Send data to WP to log redemption
       await axios.post(`${process.env.WC_SITE}/wp-json/redeem-log/v1/store`, {
         order_id: invoiceId,
         discord_user: interaction.user.tag,
-        discord_id: interaction.user.id
+        discord_id: interaction.user.id,
       });
 
       // Assign role
       const role = interaction.guild.roles.cache.find(r => r.name === process.env.ROLE_NAME);
       if (role) {
         await interaction.member.roles.add(role);
-        return interaction.reply(`✅ Role "${role.name}" assigned for invoice ${invoiceId}`);
+        return interaction.reply(`✅ Order ${invoiceId} validated. Role "${role.name}" assigned.`);
       } else {
-        return interaction.reply(`❌ Role "${process.env.ROLE_NAME}" not found.`);
+        return interaction.reply(`❌ Role "${process.env.ROLE_NAME}" not found on server.`);
       }
-    } catch (err) {
-      console.error(err);
-      interaction.reply({ content: '❌ Error verifying your order.', ephemeral: true });
+
+    } catch (error) {
+      console.error('❌ Error during redeem:', error);
+      return interaction.reply({ content: '❌ Something went wrong. Please try again or contact support.', ephemeral: true });
     }
   }
 });
